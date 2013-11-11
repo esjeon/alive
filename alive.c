@@ -61,7 +61,6 @@ static void server_start();
 static pid_t server_exec(int*);
 static void server_main(int);
 
-static int client_connect();
 static void client_rawterm(bool);
 static bool client_signals(int, bool);
 static int client_main();
@@ -221,22 +220,6 @@ EXIT:
 	exit(EXIT_SUCCESS);
 }
 
-int
-client_connect()
-{
-	int sock;
-
-	if((sock = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) {
-		die("Can't create a socket: %s\n", SERRNO);
-	}
-
-	if((connect(sock, (struct sockaddr*)&addr, sizeof(addr))) < 0) {
-		die("Can't connect to the address: %s\n", SERRNO);
-	}
-
-	return sock;
-}
-
 void
 client_rawterm(raw)
 	bool raw;
@@ -295,7 +278,13 @@ client_main()
 	int sock;
 	int ret;
 
-	sock = client_connect();
+	if((sock = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) {
+		die("Can't create a socket: %s\n", SERRNO);
+	}
+	if((connect(sock, (struct sockaddr*)&addr, sizeof(addr))) < 0) {
+		die("Can't connect to the address: %s\n", SERRNO);
+	}
+
 	client_rawterm(true);
 
 	sigprocmask(0, NULL, &sigs);
