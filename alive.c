@@ -2,6 +2,7 @@
 #include <errno.h>
 #include <pty.h>
 #include <signal.h>
+#include <stdarg.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <sys/ioctl.h>
@@ -13,6 +14,7 @@
 /* macros */
 
 #define SOCKNAME "/tmp/alive.sock"
+#define SERRNO strerror(errno)
 
 
 /* structs */
@@ -52,12 +54,14 @@ struct sockaddr_un addr;
 
 /* prototypes */
 
-static int server_start();
+static void die(const char*, ...);
+
+static void server_start();
 static pid_t server_exec(int*);
-static int server_main(int);
+static void server_main(int);
 
 static int client_connect();
-static int client_rawterm(bool);
+static void client_rawterm(bool);
 static bool client_signals(int, bool);
 static int client_main();
 
@@ -80,44 +84,48 @@ max3(a, b, c)
 	return max(max(a,b),c);
 }
 
+void
+die(const char *str, ...)
+{
+	va_list ap;
 
-int
+	va_start(ap, str);
+	vfprintf(stderr, str, ap);
+	va_end(ap);
+
+	exit(EXIT_FAILURE);
+}
+
+
+void
 server_start()
 {
 	int lsock;
 	pid_t pid;
-	int ret;
 
 	memset(&addr, 0, sizeof(addr));
 	addr.sun_family = AF_UNIX;
 	strncpy(addr.sun_path, SOCKNAME, 108);
 
 	if((lsock = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) {
-		perror(__func__": socket");
-		return -1;
+		die("Can't create a socket: %s\n", SERRNO);
 	}
 
 	if((bind(lsock, (struct sockaddr*)&addr, sizeof(addr))) < 0) {
-		perror(__func__": bind");
-		return -1;
+		die("Can't bind a server address: %s\n", SERRNO);
 	}
 
 	if(listen(lsock, 8) < 0) { /* TODO: check this constant */
-		perror(__func__": listen");
-		return -1;
+		die("Can't listen on the server socket: %s\n", SERRNO);
 	}
 
-	if(pid = fork() < 0) {
-		perror(__func__": fork");
-		return -1;
+	switch(pid = fork()) {
+	case -1:
+		die("Can't fork a server process: %s\n", SERRNO);
+	case 0:
+		server_main(lsock);
+		/* does not return */
 	}
-
-	if (pid == 0) {
-		ret = server_main(lsock);
-		exit(ret);
-	}
-
-	return 0;
 }
 
 pid_t
@@ -131,21 +139,19 @@ server_exec(cmdfd_ret)
 	ioctl(STDOUT_FILENO, TIOCGWINSZ, &wsz);
 
 	if((pid = forkpty(&fd, NULL, NULL, &wsz)) < 0) {
-		perror(__func__": forkpty");
-		return -1;
+		die("forkpty failed: %s\n", SERRNO);
 	}
 	if(pid == 0) {
 		/* TODO: exec user-specified command */
 		execl("/bin/sh", "-i", NULL);
-		perror("server_exec: execl");
-		exit(EXIT_FAILURE);
+		die("exec failed: %s\n", SERRNO);
 	}
 
 	*cmdfd_ret = fd;
 	return pid;
 }
 
-int
+void
 server_main(lsock)
 	int lsock;
 {
@@ -157,29 +163,27 @@ server_main(lsock)
 	int sock = -1;
 	int ret;
 
-	if((cmdpid = server_exec(&cmdfd)) < 0) {
-		return EXIT_FAILURE;
-	}
+	cmdpid = server_exec(&cmdfd);
 
 	while(1) {
 		FD_ZERO(&rfds);
 		FD_SET(lsock, &rfds);
 		FD_SET(cmdfd, &rfds);
-		FD_SET(sock, &rfds);
+		if(sock) {
+			FD_SET(sock, &rfds);
+		}
 		maxfd = max3(lsock, cmdfd, sock);
 
 		ret = select(maxfd + 1, &rfds, NULL, NULL, NULL);
 		if(ret < 0) {
 			if(errno == EINTR) continue;
-			perror("server_main: select");
-			goto FAIL;
+			die("server_main: select: %s\n", SERRNO);
 		}
 
 		if(FD_ISSET(cmdfd, &rfds)) {
 			ret = read(cmdfd, pkt.load.bytes, sizeof(pkt.load));
 			if(ret < 0) {
-				perror("server_main: read");
-				goto FAIL;
+				die("server_main: read: %s\n", SERRNO);
 			} else if(ret == 0) {
 				goto EXIT;
 			}
@@ -201,14 +205,13 @@ server_main(lsock)
 			if(sock) close(sock);
 			sock = accept(lsock, NULL, NULL);
 			if(sock < 0) {
-				perror("server_main: accept");
-				goto FAIL;
+				die("server_main: accept: %s\n", SERRNO);
 			}
 			/* TODO: dump buffer to client */
 		}
 
 		/* check client message */
-		if(FD_ISSET(sock, &rfds)) do {
+		if(sock && FD_ISSET(sock, &rfds)) do {
 			ret = read(sock, &pkt, sizeof(pkt));
 			if(ret <= 0) {
 				close(sock);
@@ -226,11 +229,11 @@ server_main(lsock)
 	}
 
 EXIT:
-	if(sock) close(sock);
 	close(lsock);
-	return EXIT_SUCCESS;
-FAIL:
-	return EXIT_FAILURE;
+	if(sock)
+		close(sock);
+
+	exit(EXIT_SUCCESS);
 }
 
 int
@@ -239,20 +242,17 @@ client_connect()
 	int sock;
 
 	if((sock = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) {
-		perror("client_connect: socket");
-		return -1;
+		die("Can't create a socket: %s\n", SERRNO);
 	}
 
 	if((connect(sock, (struct sockaddr*)&addr, sizeof(addr))) < 0) {
-		perror("client_connect: connect");
-		close(sock);
-		return -1;
+		die("Can't connect to the address: %s\n", SERRNO);
 	}
 
 	return sock;
 }
 
-int
+void
 client_rawterm(raw)
 	bool raw;
 {
@@ -260,25 +260,16 @@ client_rawterm(raw)
 	struct termios cfg;
 	
 	if(raw) {
-		if(tcgetattr(STDIN_FILENO, &cfg) < 0) {
-			perror("client_rawterm: tcgetattr");
-			return -1;
-		}
+		tcgetattr(STDIN_FILENO, &cfg);
 
 		bak = cfg;
 		cfmakeraw(&cfg);
 		cfg.c_lflag &= ~ECHO;
 
-		if(tcsetattr(STDIN_FILENO, TCSADRAIN, &cfg) < 0) {
-			perror("client_rawterm: tcgetattr");
-			return -1;
-		}
+		tcsetattr(STDIN_FILENO, TCSADRAIN, &cfg);
 	} else {
 		tcsetattr(STDIN_FILENO, TCSADRAIN, &bak);
-		/* ignore error */
 	}
-
-	return 0;
 }
 
 void
@@ -321,11 +312,8 @@ client_main()
 	int sock;
 	int ret;
 
-	if((sock = client_connect()) < 0)
-		return EXIT_FAILURE;
-
-	if(client_rawterm(true) < 0)
-		return EXIT_FAILURE;
+	sock = client_connect();
+	client_rawterm(true);
 
 	sigprocmask(0, NULL, &sigs);
 	sigaddset(&sigs, SIGWINCH);
@@ -349,8 +337,7 @@ client_main()
 
 		ret = pselect(maxfd + 1, &rfds, NULL, NULL, NULL, &sigs);
 		if(ret < 0 && errno != EINTR) {
-			perror("client_main: select");
-			goto FAIL;
+			die("select failed: %s\n", SERRNO);
 		} else if(ret < 0 && errno == EINTR) {
 			if(client_signals(SIGWINCH, false)) {
 				ret = ioctl(STDIN_FILENO, TIOCGWINSZ, &pkt.load.wsz);
@@ -368,8 +355,7 @@ client_main()
 		if(FD_ISSET(STDIN_FILENO, &rfds)) {
 			ret = read(STDIN_FILENO, pkt.load.bytes, sizeof(pkt.load));
 			if(ret < 0) {
-				perror("client_main: read(STDIN)");
-				goto FAIL;
+				die("Can't read the standard input: %s\n", SERRNO);
 			} else if(ret == 0) {
 				goto EXIT;
 			}
@@ -378,16 +364,14 @@ client_main()
 			pkt.size = ret;
 			ret = write(sock, &pkt, sizeof(pkt));
 			if(ret < 0) {
-				perror("client_main: write(sock)");
-				goto FAIL;
+				die("Can't write to the socket: %s\n", SERRNO);
 			}
 		}
 
 		if(FD_ISSET(sock, &rfds)) {
 			ret = read(sock, &pkt, sizeof(pkt));
 			if(ret < 0) {
-				perror("client_main: read(sock)");
-				goto FAIL;
+				die("Can't read the socket: %s\n", SERRNO);
 			} else if(ret == 0) {
 				goto EXIT;
 			}
@@ -401,9 +385,8 @@ client_main()
 EXIT:
 	client_rawterm(false);
 	close(sock);
-	return EXIT_SUCCESS;
-FAIL:
-	return EXIT_FAILURE;
+
+	exit(EXIT_SUCCESS);
 }
 
 void
@@ -424,12 +407,7 @@ main(argc, argv)
 	parse_args(argc, argv);
 
 	if(cfg.spawn_server) {
-		if(server_start() < 0) {
-			fprintf(stderr, "Cannot create server\n");
-			return EXIT_FAILURE;
-		}
-		/* NOTE: server process does not reach here,
-		 *       while client does */
+		server_start();
 	}
 
 	return client_main();
