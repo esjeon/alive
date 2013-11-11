@@ -15,6 +15,7 @@
 
 #define SOCKNAME "/tmp/alive.sock"
 #define SERRNO strerror(errno)
+#define MAX3(a,b,c) ((a>b && a>c)? a : ((b>a && b>c)? b : c))
 
 
 /* structs */
@@ -69,21 +70,6 @@ static void parse_args(int, char*[]);
 
 
 
-static inline
-int
-max(a, b)
-	int a, b;
-{
-	return (a > b)? a : b;
-}
-static inline
-int
-max3(a, b, c)
-	int a, b, c;
-{
-	return max(max(a,b),c);
-}
-
 void
 die(const char *str, ...)
 {
@@ -124,7 +110,6 @@ server_start()
 		die("Can't fork a server process: %s\n", SERRNO);
 	case 0:
 		server_main(lsock);
-		/* does not return */
 	}
 }
 
@@ -138,10 +123,10 @@ server_exec(cmdfd_ret)
 
 	ioctl(STDOUT_FILENO, TIOCGWINSZ, &wsz);
 
-	if((pid = forkpty(&fd, NULL, NULL, &wsz)) < 0) {
+	switch(pid = forkpty(&fd, NULL, NULL, &wsz)) {
+	case -1:
 		die("forkpty failed: %s\n", SERRNO);
-	}
-	if(pid == 0) {
+	case 0:
 		/* TODO: exec user-specified command */
 		execl("/bin/sh", "-i", NULL);
 		die("exec failed: %s\n", SERRNO);
@@ -172,7 +157,7 @@ server_main(lsock)
 		if(sock) {
 			FD_SET(sock, &rfds);
 		}
-		maxfd = max3(lsock, cmdfd, sock);
+		maxfd = MAX3(lsock, cmdfd, sock);
 
 		ret = select(maxfd + 1, &rfds, NULL, NULL, NULL);
 		if(ret < 0) {
@@ -292,9 +277,8 @@ client_signals(sig, val)
 	switch(sig) {
 	case SIGWINCH: p = &winch; break;
 	case SIGTSTP : p = &tstp ; break;
+	default: return false;
 	}
-
-	if(!p) return false;
 
 	old = *p;
 	*p = val;
@@ -308,7 +292,6 @@ client_main()
 	struct sigaction sa;
 	sigset_t sigs;
 	fd_set rfds;
-	int maxfd;
 	int sock;
 	int ret;
 
@@ -333,9 +316,8 @@ client_main()
 		FD_ZERO(&rfds);
 		FD_SET(STDIN_FILENO, &rfds);
 		FD_SET(sock, &rfds);
-		maxfd = sock;
 
-		ret = pselect(maxfd + 1, &rfds, NULL, NULL, NULL, &sigs);
+		ret = pselect(sock + 1, &rfds, NULL, NULL, NULL, &sigs);
 		if(ret < 0 && errno != EINTR) {
 			die("select failed: %s\n", SERRNO);
 		} else if(ret < 0 && errno == EINTR) {
@@ -410,6 +392,6 @@ main(argc, argv)
 		server_start();
 	}
 
-	return client_main();
+	client_main();
 }
 
