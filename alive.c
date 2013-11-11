@@ -12,18 +12,6 @@
 
 /* macros */
 
-/* TODO: remove this macro */
-#define PTRY(e)             \
-	if((e) < 0) do {    \
-		perror(#e); \
-		return -1;  \
-	} while(0)
-
-#define TRY(e)             \
-	if((e) < 0) do {   \
-		return -1; \
-	} while(0)
-
 #define SOCKNAME "/tmp/alive.sock"
 
 
@@ -104,11 +92,26 @@ server_start()
 	addr.sun_family = AF_UNIX;
 	strncpy(addr.sun_path, SOCKNAME, 108);
 
-	PTRY(lsock = socket(AF_UNIX, SOCK_STREAM, 0));
-	PTRY(bind(lsock, (struct sockaddr*)&addr, sizeof(addr)));
-	PTRY(listen(lsock, 8)); /* TODO: check this constant */
+	if((lsock = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) {
+		perror(__func__": socket");
+		return -1;
+	}
 
-	PTRY(pid = fork());
+	if((bind(lsock, (struct sockaddr*)&addr, sizeof(addr))) < 0) {
+		perror(__func__": bind");
+		return -1;
+	}
+
+	if(listen(lsock, 8) < 0) { /* TODO: check this constant */
+		perror(__func__": listen");
+		return -1;
+	}
+
+	if(pid = fork() < 0) {
+		perror(__func__": fork");
+		return -1;
+	}
+
 	if (pid == 0) {
 		ret = server_main(lsock);
 		exit(ret);
@@ -127,7 +130,10 @@ server_exec(cmdfd_ret)
 
 	ioctl(STDOUT_FILENO, TIOCGWINSZ, &wsz);
 
-	PTRY(pid = forkpty(&fd, NULL, NULL, &wsz));
+	if((pid = forkpty(&fd, NULL, NULL, &wsz)) < 0) {
+		perror(__func__": forkpty");
+		return -1;
+	}
 	if(pid == 0) {
 		/* TODO: exec user-specified command */
 		execl("/bin/sh", "-i", NULL);
@@ -151,7 +157,9 @@ server_main(lsock)
 	int sock = -1;
 	int ret;
 
-	TRY(cmdpid = server_exec(&cmdfd));
+	if((cmdpid = server_exec(&cmdfd)) < 0) {
+		return EXIT_FAILURE;
+	}
 
 	while(1) {
 		FD_ZERO(&rfds);
@@ -230,8 +238,16 @@ client_connect()
 {
 	int sock;
 
-	PTRY(sock = socket(AF_UNIX, SOCK_STREAM, 0));
-	PTRY(connect(sock, (struct sockaddr*)&addr, sizeof(addr)));
+	if((sock = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) {
+		perror("client_connect: socket");
+		return -1;
+	}
+
+	if((connect(sock, (struct sockaddr*)&addr, sizeof(addr))) < 0) {
+		perror("client_connect: connect");
+		close(sock);
+		return -1;
+	}
 
 	return sock;
 }
@@ -244,13 +260,22 @@ client_rawterm(raw)
 	struct termios cfg;
 	
 	if(raw) {
-		PTRY(tcgetattr(STDIN_FILENO, &cfg));
+		if(tcgetattr(STDIN_FILENO, &cfg) < 0) {
+			perror("client_rawterm: tcgetattr");
+			return -1;
+		}
+
 		bak = cfg;
 		cfmakeraw(&cfg);
 		cfg.c_lflag &= ~ECHO;
-		PTRY(tcsetattr(STDIN_FILENO, TCSADRAIN, &cfg));
+
+		if(tcsetattr(STDIN_FILENO, TCSADRAIN, &cfg) < 0) {
+			perror("client_rawterm: tcgetattr");
+			return -1;
+		}
 	} else {
-		PTRY(tcsetattr(STDIN_FILENO, TCSADRAIN, &bak));
+		tcsetattr(STDIN_FILENO, TCSADRAIN, &bak);
+		/* ignore error */
 	}
 
 	return 0;
@@ -296,8 +321,11 @@ client_main()
 	int sock;
 	int ret;
 
-	TRY(sock = client_connect());
-	TRY(client_rawterm(true));
+	if((sock = client_connect()) < 0)
+		return EXIT_FAILURE;
+
+	if(client_rawterm(true) < 0)
+		return EXIT_FAILURE;
 
 	sigprocmask(0, NULL, &sigs);
 	sigaddset(&sigs, SIGWINCH);
