@@ -8,14 +8,21 @@
 #include <sys/ioctl.h>
 #include <sys/select.h>
 #include <sys/socket.h>
+#include <sys/types.h>
 #include <sys/un.h>
 #include <unistd.h>
 
+#include "arg.h"
+char *argv0;
+
 /* macros */
 
-#define SOCKNAME "/tmp/alive.sock"
 #define SERRNO strerror(errno)
 #define MAX3(a,b,c) ((a>b && a>c)? a : ((b>a && b>c)? b : c))
+
+#ifndef UNIX_PATH_MAX
+#	define UNIX_PATH_MAX sizeof(addr.sun_path)
+#endif
 
 
 /* structs */
@@ -25,9 +32,11 @@ typedef enum {
 	false = 0
 } bool;
 
-struct config
+struct options
 {
-	bool spawn_server;
+	bool serv;
+	char *name;
+	char **cmd;
 };
 
 enum {
@@ -49,7 +58,7 @@ struct packet {
 
 /* globals */
 
-struct config cfg;
+struct options opt;
 struct sockaddr_un addr;
 
 
@@ -64,8 +73,6 @@ static void server_main(int);
 static void client_rawterm(bool);
 static bool client_signals(int, bool);
 static int client_main();
-
-static void parse_args(int, char*[]);
 
 
 
@@ -87,10 +94,6 @@ server_start()
 {
 	int lsock;
 	pid_t pid;
-
-	memset(&addr, 0, sizeof(addr));
-	addr.sun_family = AF_UNIX;
-	strncpy(addr.sun_path, SOCKNAME, 108);
 
 	if((lsock = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) {
 		die("Can't create a socket: %s\n", SERRNO);
@@ -135,6 +138,12 @@ server_exec(int *cmdfd_ret)
 }
 
 void
+server_cleanup()
+{
+	unlink(addr.sun_path);
+}
+
+void
 server_main(int lsock)
 {
 	struct packet pkt;
@@ -144,6 +153,8 @@ server_main(int lsock)
 	int maxfd;
 	int sock = -1;
 	int ret;
+
+	atexit(server_cleanup);
 
 	cmdpid = server_exec(&cmdfd);
 
@@ -166,9 +177,9 @@ server_main(int lsock)
 
 		if(FD_ISSET(cmdfd, &rfds)) {
 			ret = read(cmdfd, pkt.load.bytes, sizeof(pkt.load));
-			if(ret < 0) {
-				die("server_main: read: %s\n", SERRNO);
-			} else if(ret == 0) {
+			if(ret <= 0) {
+				if(ret < 0)
+					fprintf(stderr, "server_main: read: %s\n", SERRNO);
 				goto EXIT;
 			}
 			/* TODO: buffer */
@@ -351,22 +362,49 @@ EXIT:
 }
 
 void
-parse_args(int argc, char *argv[])
+usage()
 {
-	/* TODO: stub */
-	cfg.spawn_server = true;
+	die("TODO: usage");
 }
 
 int
 main(int argc, char *argv[])
 {
-	/* fill `cfg` */
-	parse_args(argc, argv);
+	opt.serv = true;
+	opt.name = NULL;
 
-	if(cfg.spawn_server) {
+	ARGBEGIN {
+	case 'x':
+	case 'a':
+		opt.serv = false;
+		opt.name = EARGF(usage());
+		break;
+	case 'n':
+		opt.serv = true;
+		opt.name = EARGF(usage());
+		break;
+	default:
+		opt.cmd = &argv[0];
+		goto RUN;
+	} ARGEND;
+
+RUN:
+	memset(&addr, 0, sizeof(addr));
+	addr.sun_family = AF_UNIX;
+	if(opt.name) {
+		snprintf(addr.sun_path, UNIX_PATH_MAX,
+				"/tmp/alive-%d-%s.sock", getuid(), opt.name);
+	} else {
+		snprintf(addr.sun_path, UNIX_PATH_MAX,
+				"/tmp/alive-%d-%d.sock", getuid(), getpid());
+	}
+
+	if(opt.serv) {
 		server_start();
 	}
 
 	client_main();
+
+	return EXIT_FAILURE;
 }
 
