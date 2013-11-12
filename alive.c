@@ -113,8 +113,7 @@ server_start()
 }
 
 pid_t
-server_exec(cmdfd_ret)
-	int *cmdfd_ret;
+server_exec(int *cmdfd_ret)
 {
 	struct winsize wsz;
 	pid_t pid;
@@ -136,8 +135,7 @@ server_exec(cmdfd_ret)
 }
 
 void
-server_main(lsock)
-	int lsock;
+server_main(int lsock)
 {
 	struct packet pkt;
 	fd_set rfds;
@@ -223,8 +221,7 @@ EXIT:
 }
 
 void
-client_rawterm(raw)
-	bool raw;
+client_rawterm(bool raw)
 {
 	static struct termios bak;
 	struct termios cfg;
@@ -243,16 +240,13 @@ client_rawterm(raw)
 }
 
 void
-client_onsignal(sig)
-	int sig;
+client_onsignal(int sig)
 {
 	client_signals(sig, true);
 }
 
 bool
-client_signals(sig, val)
-	int sig;
-	bool val;
+client_signals(int sig, bool val)
 {
 	static bool winch = false;
 	static bool tstp = false;
@@ -357,18 +351,14 @@ EXIT:
 }
 
 void
-parse_args(argc, argv)
-	int argc;
-	char *argv[];
+parse_args(int argc, char *argv[])
 {
 	/* TODO: stub */
 	cfg.spawn_server = true;
 }
 
 int
-main(argc, argv)
-	int argc;
-	char *argv[];
+main(int argc, char *argv[])
 {
 	/* fill `cfg` */
 	parse_args(argc, argv);
