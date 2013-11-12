@@ -149,6 +149,8 @@ server_main(lsock)
 
 	cmdpid = server_exec(&cmdfd);
 
+	setsid();
+
 	while(1) {
 		FD_ZERO(&rfds);
 		FD_SET(lsock, &rfds);
