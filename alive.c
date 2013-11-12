@@ -291,17 +291,14 @@ client_main()
 
 	sigprocmask(0, NULL, &sigs);
 	sigaddset(&sigs, SIGWINCH);
-	sigaddset(&sigs, SIGTSTP);
 	sigprocmask(SIG_SETMASK, &sigs, NULL);
 
 	sa.sa_handler = client_onsignal;
 	sa.sa_mask = sigs;
 	sigaction(SIGWINCH, &sa, NULL);
-	sigaction(SIGTSTP, &sa, NULL);
 
 	sigprocmask(0, NULL, &sigs);
 	sigdelset(&sigs, SIGWINCH);
-	sigdelset(&sigs, SIGTSTP);
 
 	while(1) {
 		FD_ZERO(&rfds);
@@ -318,9 +315,6 @@ client_main()
 				pkt.type = PKT_WINCH;
 				ret = write(sock, &pkt, sizeof(pkt));
 				assert(ret == sizeof(pkt));
-			}
-			if(client_signals(SIGTSTP, false)) {
-				/* TODO: pause */
 			}
 			continue;
 		}
