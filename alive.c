@@ -178,8 +178,6 @@ server_main(int lsock)
 		if(FD_ISSET(cmdfd, &rfds)) {
 			ret = read(cmdfd, pkt.load.bytes, sizeof(pkt.load));
 			if(ret <= 0) {
-				if(ret < 0)
-					fprintf(stderr, "server_main: read: %s\n", SERRNO);
 				goto EXIT;
 			}
 			/* TODO: buffer */
