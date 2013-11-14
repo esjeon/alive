@@ -385,6 +385,8 @@ main(int argc, char *argv[])
 		opt.serv = true;
 		opt.name = EARGF(usage());
 		break;
+	default:
+		usage();
 	} ARGEND;
 
 	if(argc > 0) {
