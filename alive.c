@@ -129,7 +129,13 @@ server_exec(int *cmdfd_ret)
 		die("forkpty failed: %s\n", SERRNO);
 	case 0:
 		/* TODO: exec user-specified command */
-		execl("/bin/sh", "-i", NULL);
+		if(opt.cmd) {
+			fprintf(stderr, "running %s...\n", opt.cmd[0]);
+			execvp(opt.cmd[0], opt.cmd);
+		} else {
+			fprintf(stderr, "running shell...\n");
+			execl("/bin/sh", "-i", NULL);
+		}
 		die("exec failed: %s\n", SERRNO);
 	}
 
@@ -381,10 +387,11 @@ main(int argc, char *argv[])
 		opt.serv = true;
 		opt.name = EARGF(usage());
 		break;
-	default:
-		opt.cmd = &argv[0];
-		goto RUN;
 	} ARGEND;
+
+	if(argc > 0) {
+		opt.cmd = &argv[0];
+	}
 
 RUN:
 	memset(&addr, 0, sizeof(addr));
