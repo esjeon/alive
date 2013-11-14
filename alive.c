@@ -103,7 +103,7 @@ server_start()
 		die("Can't bind a server address: %s\n", SERRNO);
 	}
 
-	if(listen(lsock, 8) < 0) { /* TODO: check this constant */
+	if(listen(lsock, 8) < 0) {
 		die("Can't listen on the server socket: %s\n", SERRNO);
 	}
 
@@ -128,7 +128,6 @@ server_exec(int *cmdfd_ret)
 	case -1:
 		die("forkpty failed: %s\n", SERRNO);
 	case 0:
-		/* TODO: exec user-specified command */
 		if(opt.cmd) {
 			fprintf(stderr, "running %s...\n", opt.cmd[0]);
 			execvp(opt.cmd[0], opt.cmd);
@@ -191,7 +190,6 @@ server_main(int lsock)
 				pkt.type = PKT_OUTPUT;
 				pkt.size = ret;
 				ret = write(sock, &pkt, sizeof(pkt));
-				/* TODO: here */
 				if(ret < 0) {
 					close(sock);
 					sock = -1;
