@@ -1,6 +1,5 @@
 #include <assert.h>
 #include <errno.h>
-#include <pty.h>
 #include <signal.h>
 #include <stdarg.h>
 #include <stdlib.h>
@@ -11,6 +10,14 @@
 #include <sys/types.h>
 #include <sys/un.h>
 #include <unistd.h>
+
+#if   defined(__linux)
+#	include <pty.h>
+#elif defined(__OpenBSD__) || defined(__NetBSD__) || defined(__APPLE__)
+#	include <util.h>
+#elif defined(__FreeBSD__) || defined(__DragonFly__)
+#	include <libutil.h>
+#endif
 
 #include "arg.h"
 char *argv0;
