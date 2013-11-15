@@ -24,6 +24,7 @@ char *argv0;
 
 /* macros */
 
+#define NAMELEN 15
 #define SERRNO strerror(errno)
 #define MAX3(a,b,c) ((a>b && a>c)? a : ((b>a && b>c)? b : c))
 
@@ -42,7 +43,7 @@ typedef enum {
 struct options
 {
 	bool serv;
-	char *name;
+	char name[NAMELEN+1];
 	char **cmd;
 };
 
@@ -378,17 +379,17 @@ int
 main(int argc, char *argv[])
 {
 	opt.serv = true;
-	opt.name = NULL;
+	snprintf(opt.name, NAMELEN+1, "%d", getpid());
 
 	ARGBEGIN {
 	case 'x':
 	case 'a':
 		opt.serv = false;
-		opt.name = EARGF(usage());
+		strncpy(opt.name, EARGF(usage()), NAMELEN);
 		break;
 	case 'n':
 		opt.serv = true;
-		opt.name = EARGF(usage());
+		strncpy(opt.name, EARGF(usage()), NAMELEN);
 		break;
 	default:
 		usage();
@@ -401,13 +402,8 @@ main(int argc, char *argv[])
 RUN:
 	memset(&addr, 0, sizeof(addr));
 	addr.sun_family = AF_UNIX;
-	if(opt.name) {
-		snprintf(addr.sun_path, UNIX_PATH_MAX,
-				"/tmp/alive-%d-%s.sock", getuid(), opt.name);
-	} else {
-		snprintf(addr.sun_path, UNIX_PATH_MAX,
-				"/tmp/alive-%d-%d.sock", getuid(), getpid());
-	}
+	snprintf(addr.sun_path, UNIX_PATH_MAX,
+			"/tmp/alive-%d-%s.sock", getuid(), opt.name);
 
 	if(opt.serv) {
 		server_start();
