@@ -136,10 +136,8 @@ server_exec(int *cmdfd_ret)
 		die("forkpty failed: %s\n", SERRNO);
 	case 0:
 		if(opt.cmd) {
-			fprintf(stderr, "running %s...\n", opt.cmd[0]);
 			execvp(opt.cmd[0], opt.cmd);
 		} else {
-			fprintf(stderr, "running shell...\n");
 			execl("/bin/sh", "-i", NULL);
 		}
 		die("exec failed: %s\n", SERRNO);
