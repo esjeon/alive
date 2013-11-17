@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <ctype.h>
 #include <errno.h>
 #include <signal.h>
 #include <stdarg.h>
@@ -418,6 +419,11 @@ main(int argc, char *argv[])
 	}
 
 RUN:
+	for(str = opt.name; *str != '\0' && isalnum(*str); str++);
+	if(*str != '\0') {
+		die("session name must be alphanumeric\n");
+	}
+
 	if( (str = getenv(ENVNAME)) != NULL ) {
 		str = strdup(str);
 		tok = strtok(str, ":");
