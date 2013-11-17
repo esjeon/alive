@@ -4,6 +4,7 @@
 #include <stdarg.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 #include <sys/ioctl.h>
 #include <sys/select.h>
 #include <sys/socket.h>
@@ -25,6 +26,7 @@ char *argv0;
 /* macros */
 
 #define NAMELEN 15
+#define ENVNAME "ALIVE"
 #define SERRNO strerror(errno)
 #define MAX3(a,b,c) ((a>b && a>c)? a : ((b>a && b>c)? b : c))
 
@@ -129,6 +131,8 @@ server_exec(int *cmdfd_ret)
 	struct winsize wsz;
 	pid_t pid;
 	int fd;
+	char *oldlst;
+	char *lst;
 
 	ioctl(STDOUT_FILENO, TIOCGWINSZ, &wsz);
 
@@ -136,11 +140,22 @@ server_exec(int *cmdfd_ret)
 	case -1:
 		die("forkpty failed: %s\n", SERRNO);
 	case 0:
+		if((oldlst = getenv(ENVNAME)) == NULL) {
+			lst = opt.name;
+		} else {
+			lst = calloc(strlen(oldlst) + NAMELEN + 2, sizeof(char));
+			strcpy(lst, oldlst);
+			strcat(lst, ":");
+			strncat(lst, opt.name, NAMELEN);
+		}
+		setenv(ENVNAME, lst, 1);
+
 		if(opt.cmd) {
 			execvp(opt.cmd[0], opt.cmd);
 		} else {
 			execl("/bin/sh", "-i", NULL);
 		}
+		setenv(ENVNAME, oldlst, 1);
 		die("exec failed: %s\n", SERRNO);
 	}
 
@@ -378,6 +393,9 @@ usage()
 int
 main(int argc, char *argv[])
 {
+	char *str;
+	char *tok;
+
 	opt.serv = true;
 	snprintf(opt.name, NAMELEN+1, "%d", getpid());
 
@@ -400,6 +418,18 @@ main(int argc, char *argv[])
 	}
 
 RUN:
+	if( (str = getenv(ENVNAME)) != NULL ) {
+		str = strdup(str);
+		tok = strtok(str, ":");
+		while(tok != NULL) {
+			if(strncmp(opt.name, tok, NAMELEN) == 0) {
+				die("cannot attach to a session recursively\n");
+			}
+			tok = strtok(NULL, ":");
+		}
+		free(str);
+	}
+
 	memset(&addr, 0, sizeof(addr));
 	addr.sun_family = AF_UNIX;
 	snprintf(addr.sun_path, UNIX_PATH_MAX,
