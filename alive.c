@@ -9,6 +9,7 @@
 #include <sys/ioctl.h>
 #include <sys/select.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/un.h>
 #include <unistd.h>
@@ -105,10 +106,16 @@ server_start()
 {
 	int lsock;
 	pid_t pid;
+	char *dir;
 
 	if((lsock = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) {
 		die("Can't create a socket: %s\n", SERRNO);
 	}
+
+	dir = malloc(256 * sizeof(char));
+	snprintf(dir, 256, "/tmp/alive-%d", getuid());
+	mkdir(dir, S_IRUSR | S_IWUSR | S_IXUSR);
+	free(dir);
 
 	if((bind(lsock, (struct sockaddr*)&addr, sizeof(addr))) < 0) {
 		die("Can't bind a server address: %s\n", SERRNO);
@@ -439,7 +446,7 @@ RUN:
 	memset(&addr, 0, sizeof(addr));
 	addr.sun_family = AF_UNIX;
 	snprintf(addr.sun_path, UNIX_PATH_MAX,
-			"/tmp/alive-%d-%s.sock", getuid(), opt.name);
+			"/tmp/alive-%d/%s", getuid(), opt.name);
 
 	if(opt.serv) {
 		server_start();
