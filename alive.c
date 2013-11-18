@@ -28,7 +28,6 @@ char *argv0;
 /* macros */
 
 #define NAMELEN 15
-#define ENVNAME "ALIVE"
 #define SERRNO strerror(errno)
 #define MAX3(a,b,c) ((a>b && a>c)? a : ((b>a && b>c)? b : c))
 
@@ -67,6 +66,8 @@ struct packet {
 	} load;
 };
 
+/* config */
+#include "config.h"
 
 /* globals */
 
@@ -151,22 +152,22 @@ server_exec(int *cmdfd_ret)
 	case -1:
 		die("forkpty failed: %s\n", SERRNO);
 	case 0:
-		if((oldlst = getenv(ENVNAME)) == NULL) {
+		if((oldlst = getenv(envvar)) == NULL) {
 			lst = opt.name;
 		} else {
 			lst = calloc(strlen(oldlst) + NAMELEN + 2, sizeof(char));
 			strcpy(lst, oldlst);
-			strcat(lst, ":");
+			strcat(lst, envsep);
 			strncat(lst, opt.name, NAMELEN);
 		}
-		setenv(ENVNAME, lst, 1);
+		setenv(envvar, lst, 1);
 
 		if(opt.cmd) {
 			execvp(opt.cmd[0], opt.cmd);
 		} else {
 			execl("/bin/sh", "-i", NULL);
 		}
-		setenv(ENVNAME, oldlst, 1);
+		setenv(envvar, oldlst, 1);
 		die("exec failed: %s\n", SERRNO);
 	}
 
@@ -434,14 +435,14 @@ RUN:
 		die("session name must be alphanumeric\n");
 	}
 
-	if( (str = getenv(ENVNAME)) != NULL ) {
+	if( (str = getenv(envvar)) != NULL ) {
 		str = strdup(str);
-		tok = strtok(str, ":");
+		tok = strtok(str, envsep);
 		while(tok != NULL) {
 			if(strncmp(opt.name, tok, NAMELEN) == 0) {
 				die("cannot attach to a session recursively\n");
 			}
-			tok = strtok(NULL, ":");
+			tok = strtok(NULL, envsep);
 		}
 		free(str);
 	}
