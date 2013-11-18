@@ -79,13 +79,16 @@ struct sockaddr_un addr;
 static void die(const char*, ...);
 
 static void server_start();
+static void server_cleanup();
 static pid_t server_exec(int*);
 static void server_main(int);
 
 static void client_rawterm(bool);
+static void client_onsignal(int);
 static bool client_signals(int, bool);
 static int client_main();
 
+static void usage();
 
 
 void
