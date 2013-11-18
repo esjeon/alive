@@ -58,7 +58,7 @@ struct packet {
 	unsigned char type;
 	union {
 		struct winsize wsz;
-		char bytes[0];
+		char bytes[sizeof(struct winsize)];
 	} load;
 };
 
