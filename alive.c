@@ -406,6 +406,7 @@ main(int argc, char *argv[])
 
 	opt.serv = true;
 	snprintf(opt.name, NAMELEN+1, "%d", getpid());
+	opt.cmd = NULL;
 
 	ARGBEGIN {
 	case 'x':
