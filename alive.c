@@ -3,6 +3,7 @@
 #include <errno.h>
 #include <signal.h>
 #include <stdarg.h>
+#include <stdbool.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -37,11 +38,6 @@ char *argv0;
 
 
 /* structs */
-
-typedef enum {
-	true = 1,
-	false = 0
-} bool;
 
 struct options
 {
