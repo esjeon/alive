@@ -163,11 +163,7 @@ server_exec(int *cmdfd_ret)
 		}
 		setenv(envvar, lst, 1);
 
-		if(opt.cmd) {
-			execvp(opt.cmd[0], opt.cmd);
-		} else {
-			execl("/bin/sh", "-i", NULL);
-		}
+		execvp(opt.cmd[0], opt.cmd);
 		setenv(envvar, oldlst, 1);
 		die("exec failed: %s\n", SERRNO);
 	}
@@ -411,7 +407,7 @@ main(int argc, char *argv[])
 
 	opt.serv = true;
 	snprintf(opt.name, NAMELEN+1, "%d", getpid());
-	opt.cmd = NULL;
+	opt.cmd = command;
 
 	ARGBEGIN {
 	case 'x':
