@@ -1,15 +1,30 @@
 
-CC	?= clang
-CFLAGS	+= -g -Wall -std=c99 -pedantic
-CFLAGS  += -Os -lutil
+include config.mk
 
-all: alive
+SRC = alive.c
+OBJ = ${SRC:.c=.o}
 
-alive: alive.c config.h
-	$(CC) $(CFLAGS) -o alive alive.c
+all: options alive
+
+options:
+	@echo alive build options:
+	@echo "CFLAGS   = ${CFLAGS}"
+	@echo "LDFLAGS  = ${LDFLAGS}"
+	@echo "CC       = ${CC}"
+
+.c.o:
+	@echo CC $<
+	@${CC} -c ${CFLAGS} $<
+
+${OBJ}: config.h config.mk
+
+alive: ${OBJ}
+	@echo CC -o $@
+	@${CC} ${LDFLAGS} -o $@ ${OBJ}
 
 config.h: config.def.h
 	cp config.def.h config.h
 
 clean:
-	@rm -fv alive
+	@echo cleaning
+	@rm -fv alive ${OBJ}
