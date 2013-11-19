@@ -22,7 +22,7 @@ alive: ${OBJ}
 	@echo CC -o $@
 	@${CC} ${LDFLAGS} -o $@ ${OBJ}
 
-config.h: config.def.h
+config.h:
 	cp config.def.h config.h
 
 clean:
