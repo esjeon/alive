@@ -190,7 +190,7 @@ server_main(int lsock)
 	pid_t cmdpid;
 	int cmdfd;
 	int maxfd;
-	int sock = -1;
+	int sock = 0;
 	int ret;
 
 	atexit(server_cleanup);
@@ -226,7 +226,7 @@ server_main(int lsock)
 				ret = write(sock, &pkt, sizeof(pkt));
 				if(ret < 0) {
 					close(sock);
-					sock = -1;
+					sock = 0;
 				}
 				assert(ret == sizeof(pkt));
 			}
@@ -246,7 +246,7 @@ server_main(int lsock)
 			ret = read(sock, &pkt, sizeof(pkt));
 			if(ret <= 0) {
 				close(sock);
-				sock = -1;
+				sock = 0;
 				break;
 			}
 			assert(ret == sizeof(pkt));
