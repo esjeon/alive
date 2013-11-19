@@ -1,3 +1,7 @@
+#define _POSIX_C_SOURCE 200112L
+#define _BSD_SOURCE
+#define __BSD_VISIBLE 1
+
 #include <assert.h>
 #include <ctype.h>
 #include <errno.h>
