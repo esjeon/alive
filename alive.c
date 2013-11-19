@@ -78,7 +78,7 @@ static void die(const char*, ...);
 
 static void server_start();
 static void server_cleanup();
-static pid_t server_exec(int*);
+static int server_exec();
 static void server_main(int);
 
 static void client_rawterm(bool);
@@ -134,8 +134,8 @@ server_start()
 	}
 }
 
-pid_t
-server_exec(int *cmdfd_ret)
+int
+server_exec()
 {
 	struct winsize wsz;
 	pid_t pid;
@@ -164,8 +164,7 @@ server_exec(int *cmdfd_ret)
 		die("exec failed: %s\n", SERRNO);
 	}
 
-	*cmdfd_ret = fd;
-	return pid;
+	return fd;
 }
 
 void
@@ -179,7 +178,6 @@ server_main(int lsock)
 {
 	struct packet pkt;
 	fd_set rfds;
-	pid_t cmdpid;
 	int cmdfd;
 	int maxfd;
 	int sock = 0;
@@ -187,7 +185,7 @@ server_main(int lsock)
 
 	atexit(server_cleanup);
 
-	cmdpid = server_exec(&cmdfd);
+	cmdfd = server_exec();
 
 	setsid();
 
