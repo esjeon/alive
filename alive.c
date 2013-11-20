@@ -421,7 +421,6 @@ main(int argc, char *argv[])
 		opt.cmd = &argv[0];
 	}
 
-RUN:
 	for(str = opt.name; *str != '\0' && isalnum(*str); str++);
 	if(*str != '\0') {
 		die("session name must be alphanumeric\n");
