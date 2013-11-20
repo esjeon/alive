@@ -1,0 +1,8 @@
+alive - keep process alive
+==========================
+
+Concept
+-------
+- Alive is **NOT** a terminal multiplexer
+- Alive does **NOT** depend on termcap/curses.
+
