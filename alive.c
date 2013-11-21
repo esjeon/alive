@@ -152,7 +152,8 @@ server_exec()
 		if((oldlst = getenv(envvar)) == NULL) {
 			lst = opt.name;
 		} else {
-			lst = calloc(strlen(oldlst) + NAMELEN + 2, sizeof(char));
+			lst = calloc(strlen(oldlst) + NAMELEN + 2,
+					sizeof(char));
 			strcpy(lst, oldlst);
 			strcat(lst, envsep);
 			strncat(lst, opt.name, NAMELEN);
@@ -183,6 +184,11 @@ server_main(int lsock)
 	int sock = 0;
 	int ret;
 
+	char *buffer = (bufsize > 0)? malloc(bufsize): NULL;
+	int bufstart = 0;
+	int buflen = 0;
+	int i, j;
+
 	atexit(server_cleanup);
 
 	cmdfd = server_exec();
@@ -209,7 +215,29 @@ server_main(int lsock)
 			if(ret <= 0) {
 				goto EXIT;
 			}
-			/* TODO: buffer */
+
+			if(buffer) {
+				i = (bufstart + buflen) % bufsize;
+				if(i + ret <= bufsize) {
+					memcpy(buffer + i, &pkt.load, ret);
+				} else {
+					j = bufsize - i;
+					memcpy(buffer + i, &pkt.load, j);
+					memcpy(buffer, &pkt.load.bytes[j],
+							ret - j);
+				}
+
+				if(buflen < bufsize) {
+					buflen += ret;
+					if(buflen > bufsize) {
+						bufstart += buflen - bufsize;
+						buflen = bufsize;
+					}
+				} else {
+					bufstart += ret;
+				}
+			}
+
 			if(sock) {
 				pkt.type = PKT_OUTPUT;
 				pkt.size = ret;
@@ -228,7 +256,34 @@ server_main(int lsock)
 			if(sock < 0) {
 				die("server_main: accept: %s\n", SERRNO);
 			}
-			/* TODO: dump buffer to client */
+
+			if(buffer) {
+				pkt.type = PKT_OUTPUT;
+				pkt.size = sizeof(pkt.load);
+				i = 0;
+				while(i + sizeof(pkt.load) < buflen) {
+					j = (bufstart + i) % bufsize;
+					memcpy(&pkt.load, &buffer[j], pkt.size);
+					ret = write(sock, &pkt, sizeof(pkt));
+					if(ret < 0) {
+						close(sock);
+						sock = 0;
+						break;
+					}
+					i += sizeof(pkt.load);
+				}
+
+				if(sock && i < buflen) {
+					pkt.size = buflen - i;
+					j = (bufstart + i) % bufsize;
+					memcpy(&pkt.load, &buffer[j], pkt.size);
+					ret = write(sock, &pkt, sizeof(pkt));
+					if(ret < 0) {
+						close(sock);
+						sock = 0;
+					}
+				}
+			}
 		}
 
 		/* check client message */
